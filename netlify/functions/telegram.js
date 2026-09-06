@@ -2,7 +2,7 @@ const TELEGRAM_API = "https://api.telegram.org/bot";
 
 
 // ============================================================
-// تنظیمات
+// Environment Variables
 // ============================================================
 
 const BOT_TOKEN =
@@ -35,6 +35,15 @@ function getAdminIds() {
 }
 
 
+function isAdmin(userId) {
+
+    return getAdminIds().includes(
+        String(userId)
+    );
+
+}
+
+
 // ============================================================
 // Telegram API
 // ============================================================
@@ -57,8 +66,10 @@ async function telegram(method, body) {
             }
         );
 
+
     const result =
         await response.json();
+
 
     if (!response.ok || !result.ok) {
 
@@ -69,36 +80,71 @@ async function telegram(method, body) {
 
     }
 
+
     return result.result;
 
 }
 
 
 // ============================================================
-// بررسی Admin
+// Callback پاسخ
 // ============================================================
 
-function isAdmin(userId) {
+async function answerCallback(callbackId) {
 
-    const admins =
-        getAdminIds();
+    try {
 
-    return admins.includes(
-        String(userId)
-    );
+        await telegram(
+            "answerCallbackQuery",
+            {
+                callback_query_id:
+                    callbackId
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Callback answer error:",
+            error
+        );
+
+    }
 
 }
 
 
 // ============================================================
-// GitHub URL
+// GitHub Headers
 // ============================================================
 
-function githubFileUrl() {
+function githubHeaders() {
+
+    return {
+
+        "Authorization":
+            `Bearer ${GITHUB_TOKEN}`,
+
+        "Accept":
+            "application/vnd.github+json",
+
+        "X-GitHub-Api-Version":
+            "2022-11-28"
+
+    };
+
+}
+
+
+// ============================================================
+// GitHub File URL
+// ============================================================
+
+function githubFileUrl(path) {
 
     return (
         `https://api.github.com/repos/` +
-        `${GITHUB_REPO}/contents/data/images.json` +
+        `${GITHUB_REPO}/contents/${path}` +
         `?ref=${GITHUB_BRANCH}`
     );
 
@@ -106,38 +152,28 @@ function githubFileUrl() {
 
 
 // ============================================================
-// خواندن images.json
+// خواندن فایل JSON از GitHub
 // ============================================================
 
-async function readImages() {
+async function readGithubJson(path) {
 
     const response =
         await fetch(
-            githubFileUrl(),
+            githubFileUrl(path),
             {
-                headers: {
-
-                    "Authorization":
-                        `Bearer ${GITHUB_TOKEN}`,
-
-                    "Accept":
-                        "application/vnd.github+json",
-
-                    "X-GitHub-Api-Version":
-                        "2022-11-28"
-
-                }
+                headers:
+                    githubHeaders()
             }
         );
 
 
     if (!response.ok) {
 
-        const text =
+        const errorText =
             await response.text();
 
         throw new Error(
-            `GitHub read error (${response.status}): ${text}`
+            `GitHub read error (${response.status}): ${errorText}`
         );
 
     }
@@ -158,26 +194,28 @@ async function readImages() {
         JSON.parse(content);
 
 
-    if (!Array.isArray(data.images)) {
-
-        data.images = [];
-
-    }
-
-
     return {
+
         data,
-        sha: file.sha
+
+        sha:
+            file.sha
+
     };
 
 }
 
 
 // ============================================================
-// ذخیره images.json
+// نوشتن فایل JSON در GitHub
 // ============================================================
 
-async function writeImages(data, sha, message) {
+async function writeGithubJson(
+    path,
+    data,
+    sha,
+    message
+) {
 
     const content =
         JSON.stringify(
@@ -197,23 +235,16 @@ async function writeImages(data, sha, message) {
     const response =
         await fetch(
             `https://api.github.com/repos/` +
-            `${GITHUB_REPO}/contents/data/images.json`,
+            `${GITHUB_REPO}/contents/${path}`,
             {
                 method: "PUT",
 
                 headers: {
 
-                    "Authorization":
-                        `Bearer ${GITHUB_TOKEN}`,
-
-                    "Accept":
-                        "application/vnd.github+json",
+                    ...githubHeaders(),
 
                     "Content-Type":
-                        "application/json",
-
-                    "X-GitHub-Api-Version":
-                        "2022-11-28"
+                        "application/json"
 
                 },
 
@@ -243,7 +274,7 @@ async function writeImages(data, sha, message) {
     if (!response.ok) {
 
         throw new Error(
-            "GitHub update error: " +
+            "GitHub write error: " +
             JSON.stringify(result)
         );
 
@@ -256,7 +287,161 @@ async function writeImages(data, sha, message) {
 
 
 // ============================================================
-// ساخت منوی اصلی
+// Images JSON
+// ============================================================
+
+async function readImages() {
+
+    return readGithubJson(
+        "data/images.json"
+    );
+
+}
+
+
+// ============================================================
+// Sessions JSON
+// ============================================================
+
+async function readSessions() {
+
+    try {
+
+        return await readGithubJson(
+            "data/sessions.json"
+        );
+
+    } catch (error) {
+
+        /*
+         اگر فایل sessions.json هنوز ساخته نشده باشد،
+         ساختار اولیه را برمی‌گردانیم.
+        */
+
+        console.error(
+            "Sessions read error:",
+            error
+        );
+
+
+        return {
+
+            data: {
+                sessions: {}
+            },
+
+            sha: null
+
+        };
+
+    }
+
+}
+
+
+// ============================================================
+// ذخیره Session
+// ============================================================
+
+async function saveSessions(
+    data,
+    sha,
+    message
+) {
+
+    if (!data.sessions) {
+
+        data.sessions = {};
+
+    }
+
+
+    /*
+      اگر فایل وجود نداشته باشد
+      باید PUT بدون sha انجام شود.
+    */
+
+    if (!sha) {
+
+        const content =
+            JSON.stringify(
+                data,
+                null,
+                2
+            );
+
+
+        const encodedContent =
+            Buffer.from(
+                content,
+                "utf-8"
+            ).toString("base64");
+
+
+        const response =
+            await fetch(
+                `https://api.github.com/repos/` +
+                `${GITHUB_REPO}/contents/data/sessions.json`,
+                {
+                    method: "PUT",
+
+                    headers: {
+
+                        ...githubHeaders(),
+
+                        "Content-Type":
+                            "application/json"
+
+                    },
+
+                    body:
+                        JSON.stringify({
+
+                            message,
+
+                            content:
+                                encodedContent,
+
+                            branch:
+                                GITHUB_BRANCH
+
+                        })
+
+                }
+            );
+
+
+        const result =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                "GitHub sessions create error: " +
+                JSON.stringify(result)
+            );
+
+        }
+
+
+        return result;
+
+    }
+
+
+    return writeGithubJson(
+        "data/sessions.json",
+        data,
+        sha,
+        message
+    );
+
+}
+
+
+// ============================================================
+// Main Menu
 // ============================================================
 
 function mainMenu() {
@@ -267,31 +452,42 @@ function mainMenu() {
 
             [
                 {
-                    text: "➕ افزودن تصویر",
-                    callback_data: "ADD_IMAGE"
+                    text:
+                        "➕ افزودن تصویر",
+
+                    callback_data:
+                        "ADD_IMAGE"
                 }
             ],
 
             [
                 {
-                    text: "🖼 مدیریت تصاویر",
-                    callback_data: "MANAGE_IMAGES"
+                    text:
+                        "🖼 مدیریت تصاویر",
+
+                    callback_data:
+                        "MANAGE_IMAGES"
                 }
             ],
 
             [
                 {
-                    text: "📂 دسته‌بندی‌ها",
-                    callback_data: "CATEGORIES"
+                    text:
+                        "📂 دسته‌بندی‌ها",
+
+                    callback_data:
+                        "CATEGORIES"
                 }
             ],
 
             [
                 {
-                    text: "ℹ️ راهنما",
-                    callback_data: "HELP"
-                }
+                    text:
+                        "ℹ️ راهنما",
 
+                    callback_data:
+                        "HELP"
+                }
             ]
 
         ]
@@ -302,7 +498,7 @@ function mainMenu() {
 
 
 // ============================================================
-// منوی مدیریت
+// Management Menu
 // ============================================================
 
 function managementMenu() {
@@ -313,38 +509,52 @@ function managementMenu() {
 
             [
                 {
-                    text: "➕ افزودن تصویر",
-                    callback_data: "ADD_IMAGE"
+                    text:
+                        "➕ افزودن تصویر",
+
+                    callback_data:
+                        "ADD_IMAGE"
                 }
             ],
 
             [
                 {
-                    text: "🗑 حذف تصویر",
-                    callback_data: "DELETE_IMAGE"
+                    text:
+                        "🗑 حذف تصویر",
+
+                    callback_data:
+                        "DELETE_IMAGE"
                 }
             ],
 
             [
                 {
-                    text: "✏️ ویرایش تصویر",
-                    callback_data: "EDIT_IMAGE"
+                    text:
+                        "✏️ ویرایش تصویر",
+
+                    callback_data:
+                        "EDIT_IMAGE"
                 }
             ],
 
             [
                 {
-                    text: "📋 لیست تصاویر",
-                    callback_data: "LIST_IMAGES"
+                    text:
+                        "📋 لیست تصاویر",
+
+                    callback_data:
+                        "LIST_IMAGES"
                 }
             ],
 
             [
                 {
-                    text: "🔙 منوی اصلی",
-                    callback_data: "MAIN_MENU"
-                }
+                    text:
+                        "🔙 منوی اصلی",
 
+                    callback_data:
+                        "MAIN_MENU"
+                }
             ]
 
         ]
@@ -355,12 +565,12 @@ function managementMenu() {
 
 
 // ============================================================
-// ارسال منوی اصلی
+// Send Main Menu
 // ============================================================
 
 async function sendMainMenu(chatId) {
 
-    return telegram(
+    await telegram(
         "sendMessage",
         {
 
@@ -385,26 +595,32 @@ async function sendMainMenu(chatId) {
 
 
 // ============================================================
-// حذف کیبورد قبلی
+// Cancel Session
 // ============================================================
 
-async function answerCallback(callbackId) {
+async function cancelSession(userId) {
 
-    try {
+    const {
+        data,
+        sha
+    } =
+        await readSessions();
 
-        await telegram(
-            "answerCallbackQuery",
-            {
-                callback_query_id:
-                    callbackId
-            }
-        );
 
-    } catch (error) {
+    if (
+        data.sessions &&
+        data.sessions[String(userId)]
+    ) {
 
-        console.error(
-            "answerCallbackQuery error:",
-            error
+        delete data.sessions[
+            String(userId)
+        ];
+
+
+        await saveSessions(
+            data,
+            sha,
+            `Cancel session ${userId}`
         );
 
     }
@@ -413,7 +629,107 @@ async function answerCallback(callbackId) {
 
 
 // ============================================================
-// استخراج عکس
+// دریافت Session کاربر
+// ============================================================
+
+async function getSession(userId) {
+
+    const {
+        data
+    } =
+        await readSessions();
+
+
+    if (!data.sessions) {
+
+        data.sessions = {};
+
+    }
+
+
+    return (
+        data.sessions[
+            String(userId)
+        ] || null
+    );
+
+}
+
+
+// ============================================================
+// ذخیره Session کاربر
+// ============================================================
+
+async function setSession(
+    userId,
+    session
+) {
+
+    const {
+        data,
+        sha
+    } =
+        await readSessions();
+
+
+    if (!data.sessions) {
+
+        data.sessions = {};
+
+    }
+
+
+    data.sessions[
+        String(userId)
+    ] =
+        session;
+
+
+    await saveSessions(
+        data,
+        sha,
+        `Update session ${userId}`
+    );
+
+}
+
+
+// ============================================================
+// حذف Session کاربر
+// ============================================================
+
+async function deleteSession(userId) {
+
+    const {
+        data,
+        sha
+    } =
+        await readSessions();
+
+
+    if (!data.sessions) {
+
+        return;
+
+    }
+
+
+    delete data.sessions[
+        String(userId)
+    ];
+
+
+    await saveSessions(
+        data,
+        sha,
+        `Delete session ${userId}`
+    );
+
+}
+
+
+// ============================================================
+// بزرگ‌ترین نسخه عکس
 // ============================================================
 
 function getLargestPhoto(photoArray) {
@@ -422,13 +738,429 @@ function getLargestPhoto(photoArray) {
         !Array.isArray(photoArray) ||
         photoArray.length === 0
     ) {
+
         return null;
+
     }
 
 
     return photoArray[
         photoArray.length - 1
     ];
+
+}
+
+
+// ============================================================
+// شروع افزودن تصویر
+// ============================================================
+
+async function startAddImage(chatId) {
+
+    await telegram(
+        "sendMessage",
+        {
+
+            chat_id:
+                chatId,
+
+            text:
+                "➕ *افزودن تصویر*\n\n" +
+                "📸 لطفاً تصویر موردنظر را ارسال کنید.\n\n" +
+                "بعد از ارسال تصویر، نام و دسته‌بندی آن را از شما می‌پرسم.\n\n" +
+                "❌ برای لغو: /cancel",
+
+            parse_mode:
+                "Markdown"
+
+        }
+    );
+
+}
+
+
+// ============================================================
+// درخواست نام
+// ============================================================
+
+async function askImageName(chatId) {
+
+    await telegram(
+        "sendMessage",
+        {
+
+            chat_id:
+                chatId,
+
+            text:
+                "✅ تصویر دریافت شد.\n\n" +
+                "✏️ حالا *نام تصویر* را وارد کنید.\n\n" +
+                "مثال:\n" +
+                "نمایشگاه بین‌المللی تهران\n\n" +
+                "نام تصویر اجباری است.\n\n" +
+                "❌ برای لغو: /cancel",
+
+            parse_mode:
+                "Markdown"
+
+        }
+    );
+
+}
+
+
+// ============================================================
+// درخواست دسته‌بندی
+// ============================================================
+
+async function askImageCategory(chatId) {
+
+    await telegram(
+        "sendMessage",
+        {
+
+            chat_id:
+                chatId,
+
+            text:
+                "📂 حالا *دسته‌بندی* تصویر را وارد کنید.\n\n" +
+                "حداقل یک دسته‌بندی الزامی است.\n\n" +
+                "مثال:\n" +
+                "نمایشگاه\n\n" +
+                "اگر چند دسته دارید، با کاما جدا کنید:\n" +
+                "نمایشگاه, محصولات, 1405\n\n" +
+                "❌ برای لغو: /cancel",
+
+            parse_mode:
+                "Markdown"
+
+        }
+    );
+
+}
+
+
+// ============================================================
+// پیش‌نمایش اطلاعات
+// ============================================================
+
+async function showImagePreview(
+    chatId,
+    session
+) {
+
+    const categories =
+        session.categories.join(
+            "، "
+        );
+
+
+    await telegram(
+        "sendMessage",
+        {
+
+            chat_id:
+                chatId,
+
+            text:
+                "👁 *پیش‌نمایش تصویر*\n\n" +
+
+                `🖼 نام:\n${session.name}\n\n` +
+
+                `📂 دسته‌بندی:\n${categories}\n\n` +
+
+                "آیا اطلاعات صحیح است؟",
+
+            parse_mode:
+                "Markdown",
+
+            reply_markup: {
+
+                inline_keyboard: [
+
+                    [
+                        {
+                            text:
+                                "✅ ذخیره نهایی",
+
+                            callback_data:
+                                "SAVE_IMAGE"
+                        }
+                    ],
+
+                    [
+                        {
+                            text:
+                                "✏️ تغییر نام",
+
+                            callback_data:
+                                "CHANGE_NAME"
+                        },
+
+                        {
+                            text:
+                                "📂 تغییر دسته‌بندی",
+
+                            callback_data:
+                                "CHANGE_CATEGORY"
+                        }
+                    ],
+
+                    [
+                        {
+                            text:
+                                "❌ لغو",
+
+                            callback_data:
+                                "CANCEL_ADD"
+                        }
+                    ]
+
+                ]
+
+            }
+
+        }
+    );
+
+}
+
+
+// ============================================================
+// ذخیره نهایی تصویر
+// ============================================================
+
+async function saveImageFinal(
+    chatId,
+    userId
+) {
+
+    const session =
+        await getSession(
+            userId
+        );
+
+
+    if (!session) {
+
+        await telegram(
+            "sendMessage",
+            {
+
+                chat_id:
+                    chatId,
+
+                text:
+                    "❌ نشست افزودن تصویر پیدا نشد.\n\n" +
+                    "لطفاً دوباره از /start شروع کنید."
+
+            }
+        );
+
+        return;
+
+    }
+
+
+    if (
+        !session.file_id ||
+        !session.name ||
+        !Array.isArray(session.categories) ||
+        session.categories.length === 0
+    ) {
+
+        await telegram(
+            "sendMessage",
+            {
+
+                chat_id:
+                    chatId,
+
+                text:
+                    "❌ اطلاعات تصویر کامل نیست."
+
+            }
+        );
+
+        return;
+
+    }
+
+
+    // ========================================================
+    // ارسال عکس به کانال
+    // ========================================================
+
+    const channelMessage =
+        await telegram(
+            "sendPhoto",
+            {
+
+                chat_id:
+                    CHANNEL_ID,
+
+                photo:
+                    session.file_id,
+
+                caption:
+                    session.name
+
+            }
+        );
+
+
+    // ========================================================
+    // خواندن images.json
+    // ========================================================
+
+    const {
+        data,
+        sha
+    } =
+        await readImages();
+
+
+    if (!Array.isArray(data.images)) {
+
+        data.images = [];
+
+    }
+
+
+    // ========================================================
+    // ID
+    // ========================================================
+
+    const newId =
+        String(
+            Date.now()
+        );
+
+
+    // ========================================================
+    // رکورد تصویر
+    // ========================================================
+
+    const imageRecord = {
+
+        id:
+            newId,
+
+        file_id:
+            session.file_id,
+
+        telegram_message_id:
+            channelMessage.message_id,
+
+        name:
+            session.name,
+
+        categories:
+            session.categories,
+
+        caption:
+            session.name,
+
+        width:
+            session.width,
+
+        height:
+            session.height,
+
+        created_at:
+            new Date().toISOString()
+
+    };
+
+
+    // ========================================================
+    // ذخیره در images.json
+    // ========================================================
+
+    data.images.push(
+        imageRecord
+    );
+
+
+    try {
+
+        await writeGithubJson(
+            "data/images.json",
+            data,
+            sha,
+            `Add image ${newId}`
+        );
+
+    } catch (error) {
+
+        /*
+          اگر GitHub شکست خورد، عکس در کانال ذخیره شده.
+          این موضوع را به کاربر اعلام می‌کنیم.
+        */
+
+        console.error(
+            "Image GitHub save error:",
+            error
+        );
+
+
+        await telegram(
+            "sendMessage",
+            {
+
+                chat_id:
+                    chatId,
+
+                text:
+                    "⚠️ عکس در کانال ذخیره شد اما ثبت اطلاعات در GitHub با خطا مواجه شد.\n\n" +
+                    "لطفاً فعلاً دوباره همین عکس را ارسال نکنید."
+
+            }
+        );
+
+
+        return;
+
+    }
+
+
+    // ========================================================
+    // حذف Session
+    // ========================================================
+
+    await deleteSession(
+        userId
+    );
+
+
+    // ========================================================
+    // پاسخ موفق
+    // ========================================================
+
+    await telegram(
+        "sendMessage",
+        {
+
+            chat_id:
+                chatId,
+
+            text:
+                "🎉 *تصویر با موفقیت ثبت شد!*\n\n" +
+
+                `🖼 نام:\n${session.name}\n\n` +
+
+                `📂 دسته‌بندی:\n${session.categories.join("، ")}\n\n` +
+
+                "تصویر اکنون در گالری سایت قابل نمایش است.",
+
+            parse_mode:
+                "Markdown",
+
+            reply_markup:
+                mainMenu()
+
+        }
+    );
 
 }
 
@@ -441,9 +1173,9 @@ export default async (req) => {
 
     try {
 
-        // ========================================================
+        // ======================================================
         // فقط POST
-        // ========================================================
+        // ======================================================
 
         if (req.method !== "POST") {
 
@@ -457,9 +1189,9 @@ export default async (req) => {
         }
 
 
-        // ========================================================
+        // ======================================================
         // Update
-        // ========================================================
+        // ======================================================
 
         const update =
             await req.json();
@@ -471,9 +1203,9 @@ export default async (req) => {
         );
 
 
-        // ========================================================
-        // بررسی Environment
-        // ========================================================
+        // ======================================================
+        // Environment
+        // ======================================================
 
         if (
             !BOT_TOKEN ||
@@ -489,9 +1221,9 @@ export default async (req) => {
         }
 
 
-        // ========================================================
+        // ======================================================
         // CHANNEL POST
-        // ========================================================
+        // ======================================================
 
         if (update.channel_post) {
 
@@ -509,9 +1241,9 @@ export default async (req) => {
                 channelPost.chat?.id;
 
 
-            // -----------------------------------------------
-            // ابزار موقت دریافت Channel ID
-            // -----------------------------------------------
+            // --------------------------------------------------
+            // دریافت Channel ID
+            // --------------------------------------------------
 
             if (
                 text.trim() ===
@@ -537,11 +1269,7 @@ export default async (req) => {
                         ok: true
                     }),
                     {
-                        status: 200,
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        }
+                        status: 200
                     }
                 );
 
@@ -555,20 +1283,16 @@ export default async (req) => {
                         "Channel post ignored"
                 }),
                 {
-                    status: 200,
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    }
+                    status: 200
                 }
             );
 
         }
 
 
-        // ========================================================
+        // ======================================================
         // CALLBACK QUERY
-        // ========================================================
+        // ======================================================
 
         if (update.callback_query) {
 
@@ -593,9 +1317,9 @@ export default async (req) => {
             );
 
 
-            // -----------------------------------------------
-            // بررسی دسترسی
-            // -----------------------------------------------
+            // --------------------------------------------------
+            // Admin
+            // --------------------------------------------------
 
             if (!isAdmin(userId)) {
 
@@ -625,9 +1349,9 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // منوی اصلی
-            // -----------------------------------------------
+            // ==================================================
+            // MAIN MENU
+            // ==================================================
 
             if (
                 action ===
@@ -641,14 +1365,180 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // افزودن تصویر
-            // -----------------------------------------------
+            // ==================================================
+            // ADD IMAGE
+            // ==================================================
 
             else if (
                 action ===
                 "ADD_IMAGE"
             ) {
+
+                await cancelSession(
+                    userId
+                );
+
+
+                await setSession(
+                    userId,
+                    {
+                        state:
+                            "waiting_photo",
+
+                        created_at:
+                            new Date().toISOString()
+                    }
+                );
+
+
+                await startAddImage(
+                    chatId
+                );
+
+            }
+
+
+            // ==================================================
+            // SAVE IMAGE
+            // ==================================================
+
+            else if (
+                action ===
+                "SAVE_IMAGE"
+            ) {
+
+                await saveImageFinal(
+                    chatId,
+                    userId
+                );
+
+            }
+
+
+            // ==================================================
+            // CHANGE NAME
+            // ==================================================
+
+            else if (
+                action ===
+                "CHANGE_NAME"
+            ) {
+
+                const session =
+                    await getSession(
+                        userId
+                    );
+
+
+                if (!session) {
+
+                    await telegram(
+                        "sendMessage",
+                        {
+
+                            chat_id:
+                                chatId,
+
+                            text:
+                                "❌ نشست پیدا نشد. دوباره از /start شروع کنید."
+
+                        }
+                    );
+
+                } else {
+
+                    session.state =
+                        "waiting_name";
+
+
+                    await setSession(
+                        userId,
+                        session
+                    );
+
+
+                    await telegram(
+                        "sendMessage",
+                        {
+
+                            chat_id:
+                                chatId,
+
+                            text:
+                                "✏️ نام جدید تصویر را وارد کنید:"
+
+                        }
+                    );
+
+                }
+
+            }
+
+
+            // ==================================================
+            // CHANGE CATEGORY
+            // ==================================================
+
+            else if (
+                action ===
+                "CHANGE_CATEGORY"
+            ) {
+
+                const session =
+                    await getSession(
+                        userId
+                    );
+
+
+                if (!session) {
+
+                    await telegram(
+                        "sendMessage",
+                        {
+
+                            chat_id:
+                                chatId,
+
+                            text:
+                                "❌ نشست پیدا نشد. دوباره از /start شروع کنید."
+
+                        }
+                    );
+
+                } else {
+
+                    session.state =
+                        "waiting_category";
+
+
+                    await setSession(
+                        userId,
+                        session
+                    );
+
+
+                    await askImageCategory(
+                        chatId
+                    );
+
+                }
+
+            }
+
+
+            // ==================================================
+            // CANCEL ADD
+            // ==================================================
+
+            else if (
+                action ===
+                "CANCEL_ADD"
+            ) {
+
+                await cancelSession(
+                    userId
+                );
+
 
                 await telegram(
                     "sendMessage",
@@ -658,9 +1548,10 @@ export default async (req) => {
                             chatId,
 
                         text:
-                            "📸 لطفاً تصویر موردنظر را ارسال کنید.\n\n" +
-                            "بعد از دریافت تصویر، نام و دسته‌بندی آن را از شما می‌خواهم.\n\n" +
-                            "برای لغو، /cancel را ارسال کنید."
+                            "❌ افزودن تصویر لغو شد.",
+
+                        reply_markup:
+                            mainMenu()
 
                     }
                 );
@@ -668,9 +1559,9 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // مدیریت تصاویر
-            // -----------------------------------------------
+            // ==================================================
+            // MANAGEMENT
+            // ==================================================
 
             else if (
                 action ===
@@ -685,8 +1576,11 @@ export default async (req) => {
                             chatId,
 
                         text:
-                            "🖼 مدیریت تصاویر\n\n" +
+                            "🖼 *مدیریت تصاویر*\n\n" +
                             "یکی از گزینه‌های زیر را انتخاب کنید:",
+
+                        parse_mode:
+                            "Markdown",
 
                         reply_markup:
                             managementMenu()
@@ -697,9 +1591,9 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // لیست تصاویر
-            // -----------------------------------------------
+            // ==================================================
+            // LIST IMAGES
+            // ==================================================
 
             else if (
                 action ===
@@ -712,8 +1606,16 @@ export default async (req) => {
                     await readImages();
 
 
+                const images =
+                    Array.isArray(
+                        data.images
+                    )
+                        ? data.images
+                        : [];
+
+
                 if (
-                    data.images.length === 0
+                    images.length === 0
                 ) {
 
                     await telegram(
@@ -732,10 +1634,10 @@ export default async (req) => {
                 } else {
 
                     let text =
-                        "🖼 *لیست تصاویر*\n\n";
+                        `🖼 *تعداد تصاویر: ${images.length}*\n\n`;
 
 
-                    data.images
+                    images
                         .slice()
                         .reverse()
                         .slice(0, 30)
@@ -745,6 +1647,7 @@ export default async (req) => {
                                 const name =
                                     image.name ||
                                     "بدون نام";
+
 
                                 const categories =
                                     Array.isArray(
@@ -768,11 +1671,11 @@ export default async (req) => {
 
 
                     if (
-                        data.images.length > 30
+                        images.length > 30
                     ) {
 
                         text +=
-                            `\n... و ${data.images.length - 30} تصویر دیگر`;
+                            `\n... و ${images.length - 30} تصویر دیگر`;
 
                     }
 
@@ -797,9 +1700,9 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // دسته‌بندی‌ها
-            // -----------------------------------------------
+            // ==================================================
+            // CATEGORIES
+            // ==================================================
 
             else if (
                 action ===
@@ -816,7 +1719,13 @@ export default async (req) => {
                     new Set();
 
 
-                data.images.forEach(
+                (
+                    Array.isArray(
+                        data.images
+                    )
+                        ? data.images
+                        : []
+                ).forEach(
                     image => {
 
                         if (
@@ -916,9 +1825,9 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // حذف تصویر
-            // -----------------------------------------------
+            // ==================================================
+            // DELETE IMAGE
+            // ==================================================
 
             else if (
                 action ===
@@ -931,8 +1840,16 @@ export default async (req) => {
                     await readImages();
 
 
+                const images =
+                    Array.isArray(
+                        data.images
+                    )
+                        ? data.images
+                        : [];
+
+
                 if (
-                    data.images.length === 0
+                    images.length === 0
                 ) {
 
                     await telegram(
@@ -951,7 +1868,7 @@ export default async (req) => {
                 } else {
 
                     const keyboard =
-                        data.images
+                        images
                             .slice()
                             .reverse()
                             .slice(0, 30)
@@ -993,7 +1910,10 @@ export default async (req) => {
                                 chatId,
 
                             text:
-                                "🗑 تصویر موردنظر برای حذف را انتخاب کنید:",
+                                "🗑 *تصویر موردنظر برای حذف را انتخاب کنید:*",
+
+                            parse_mode:
+                                "Markdown",
 
                             reply_markup: {
                                 inline_keyboard:
@@ -1008,9 +1928,9 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // تأیید حذف
-            // -----------------------------------------------
+            // ==================================================
+            // DELETE CONFIRM
+            // ==================================================
 
             else if (
                 action.startsWith(
@@ -1104,7 +2024,6 @@ export default async (req) => {
                                                 "MANAGE_IMAGES"
 
                                         }
-
                                     ]
 
                                 ]
@@ -1119,9 +2038,9 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // حذف نهایی
-            // -----------------------------------------------
+            // ==================================================
+            // DELETE FINAL
+            // ==================================================
 
             else if (
                 action.startsWith(
@@ -1172,9 +2091,9 @@ export default async (req) => {
                         data.images[index];
 
 
-                    // ---------------------------------------
-                    // حذف پیام از کانال
-                    // ---------------------------------------
+                    // ------------------------------------------
+                    // حذف از کانال
+                    // ------------------------------------------
 
                     if (
                         image.telegram_message_id
@@ -1198,7 +2117,7 @@ export default async (req) => {
                         } catch (deleteError) {
 
                             console.error(
-                                "Channel delete error:",
+                                "Telegram delete error:",
                                 deleteError
                             );
 
@@ -1207,9 +2126,9 @@ export default async (req) => {
                     }
 
 
-                    // ---------------------------------------
+                    // ------------------------------------------
                     // حذف از JSON
-                    // ---------------------------------------
+                    // ------------------------------------------
 
                     data.images.splice(
                         index,
@@ -1217,7 +2136,8 @@ export default async (req) => {
                     );
 
 
-                    await writeImages(
+                    await writeGithubJson(
+                        "data/images.json",
                         data,
                         sha,
                         `Delete image ${imageId}`
@@ -1233,7 +2153,10 @@ export default async (req) => {
 
                             text:
                                 "✅ تصویر با موفقیت حذف شد.\n\n" +
-                                "تصویر از گالری حذف شد."
+                                "تصویر از گالری نیز حذف خواهد شد.",
+
+                            reply_markup:
+                                managementMenu()
 
                         }
                     );
@@ -1243,114 +2166,14 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // ویرایش
-            // -----------------------------------------------
+            // ==================================================
+            // EDIT IMAGE
+            // ==================================================
 
             else if (
                 action ===
                 "EDIT_IMAGE"
             ) {
-
-                const {
-                    data
-                } =
-                    await readImages();
-
-
-                if (
-                    data.images.length === 0
-                ) {
-
-                    await telegram(
-                        "sendMessage",
-                        {
-
-                            chat_id:
-                                chatId,
-
-                            text:
-                                "📭 تصویری برای ویرایش وجود ندارد."
-
-                        }
-                    );
-
-                } else {
-
-                    const keyboard =
-                        data.images
-                            .slice()
-                            .reverse()
-                            .slice(0, 30)
-                            .map(
-                                image => [
-
-                                    {
-                                        text:
-                                            `✏️ ${image.name || "بدون نام"}`,
-
-                                        callback_data:
-                                            `EDIT_SELECT_${image.id}`
-
-                                    }
-
-                                ]
-                            );
-
-
-                    keyboard.push(
-                        [
-                            {
-                                text:
-                                    "🔙 برگشت",
-
-                                callback_data:
-                                    "MANAGE_IMAGES"
-
-                            }
-                        ]
-                    );
-
-
-                    await telegram(
-                        "sendMessage",
-                        {
-
-                            chat_id:
-                                chatId,
-
-                            text:
-                                "✏️ تصویر موردنظر برای ویرایش را انتخاب کنید:",
-
-                            reply_markup: {
-                                inline_keyboard:
-                                    keyboard
-                            }
-
-                        }
-                    );
-
-                }
-
-            }
-
-
-            // -----------------------------------------------
-            // انتخاب تصویر برای ویرایش
-            // -----------------------------------------------
-
-            else if (
-                action.startsWith(
-                    "EDIT_SELECT_"
-                )
-            ) {
-
-                const imageId =
-                    action.replace(
-                        "EDIT_SELECT_",
-                        ""
-                    );
-
 
                 await telegram(
                     "sendMessage",
@@ -1360,15 +2183,11 @@ export default async (req) => {
                             chatId,
 
                         text:
-                            "✏️ اطلاعات جدید تصویر را در یک پیام ارسال کنید.\n\n" +
-                            "فرمت:\n\n" +
-                            "نام تصویر | دسته‌بندی\n\n" +
-                            "مثال:\n" +
-                            "نمایشگاه تهران | نمایشگاه\n\n" +
-                            "برای چند دسته‌بندی:\n" +
-                            "نمایشگاه تهران | نمایشگاه, محصولات, 1405\n\n" +
-                            `شناسه تصویر: ${imageId}\n\n` +
-                            "برای لغو /cancel را ارسال کنید."
+                            "✏️ بخش ویرایش تصویر را در مرحله بعدی کامل می‌کنیم.\n\n" +
+                            "فعلاً افزودن و حذف تصویر فعال است.",
+
+                        reply_markup:
+                            managementMenu()
 
                     }
                 );
@@ -1376,9 +2195,9 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // راهنما
-            // -----------------------------------------------
+            // ==================================================
+            // HELP
+            // ==================================================
 
             else if (
                 action ===
@@ -1395,17 +2214,17 @@ export default async (req) => {
                         text:
                             "ℹ️ *راهنمای Hamed Photo*\n\n" +
 
-                            "➕ افزودن تصویر:\n" +
-                            "تصویر را ارسال می‌کنید، سپس نام و دسته‌بندی تعیین می‌شود.\n\n" +
+                            "➕ افزودن تصویر\n" +
+                            "ابتدا تصویر را ارسال کنید، سپس نام و دسته‌بندی را وارد کنید.\n\n" +
 
-                            "🗑 حذف تصویر:\n" +
-                            "تصویر را از لیست انتخاب کرده و حذف می‌کنید.\n\n" +
+                            "🖼 مدیریت تصاویر\n" +
+                            "برای مشاهده، حذف و مدیریت تصاویر.\n\n" +
 
-                            "✏️ ویرایش:\n" +
-                            "نام و دسته‌بندی تصویر قابل تغییر است.\n\n" +
+                            "📂 دسته‌بندی‌ها\n" +
+                            "لیست دسته‌بندی‌های موجود.\n\n" +
 
-                            "📂 دسته‌بندی:\n" +
-                            "هر تصویر باید حداقل یک دسته‌بندی داشته باشد.",
+                            "❌ /cancel\n" +
+                            "لغو عملیات جاری.",
 
                         parse_mode:
                             "Markdown"
@@ -1433,9 +2252,9 @@ export default async (req) => {
         }
 
 
-        // ========================================================
+        // ======================================================
         // MESSAGE
-        // ========================================================
+        // ======================================================
 
         if (update.message) {
 
@@ -1451,18 +2270,16 @@ export default async (req) => {
                 message.from?.id;
 
 
-            // -----------------------------------------------
+            // ==================================================
             // /start
-            // -----------------------------------------------
+            // ==================================================
 
             if (
                 message.text?.trim() ===
                 "/start"
             ) {
 
-                if (
-                    !isAdmin(userId)
-                ) {
+                if (!isAdmin(userId)) {
 
                     await telegram(
                         "sendMessage",
@@ -1478,6 +2295,11 @@ export default async (req) => {
                     );
 
                 } else {
+
+                    await cancelSession(
+                        userId
+                    );
+
 
                     await sendMainMenu(
                         chatId
@@ -1498,9 +2320,9 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
+            // ==================================================
             // /myid
-            // -----------------------------------------------
+            // ==================================================
 
             if (
                 message.text?.trim() ===
@@ -1533,18 +2355,21 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
+            // ==================================================
             // /cancel
-            // -----------------------------------------------
+            // ==================================================
 
             if (
                 message.text?.trim() ===
                 "/cancel"
             ) {
 
-                if (
-                    isAdmin(userId)
-                ) {
+                if (isAdmin(userId)) {
+
+                    await cancelSession(
+                        userId
+                    );
+
 
                     await telegram(
                         "sendMessage",
@@ -1554,14 +2379,12 @@ export default async (req) => {
                                 chatId,
 
                             text:
-                                "❌ عملیات لغو شد."
+                                "❌ عملیات لغو شد.",
+
+                            reply_markup:
+                                mainMenu()
 
                         }
-                    );
-
-
-                    await sendMainMenu(
-                        chatId
                     );
 
                 }
@@ -1579,16 +2402,44 @@ export default async (req) => {
             }
 
 
-            // -----------------------------------------------
-            // پیام دارای عکس
-            // -----------------------------------------------
+            // ==================================================
+            // ADMIN CHECK
+            // ==================================================
 
-            if (
-                message.photo
-            ) {
+            if (!isAdmin(userId)) {
+
+                return new Response(
+                    JSON.stringify({
+                        ok: true
+                    }),
+                    {
+                        status: 200
+                    }
+                );
+
+            }
+
+
+            // ==================================================
+            // دریافت عکس
+            // ==================================================
+
+            if (message.photo) {
+
+                const session =
+                    await getSession(
+                        userId
+                    );
+
+
+                // ----------------------------------------------
+                // کاربر در حالت افزودن عکس نیست
+                // ----------------------------------------------
 
                 if (
-                    !isAdmin(userId)
+                    !session ||
+                    session.state !==
+                    "waiting_photo"
                 ) {
 
                     await telegram(
@@ -1599,7 +2450,7 @@ export default async (req) => {
                                 chatId,
 
                             text:
-                                "⛔ شما اجازه افزودن تصویر ندارید."
+                                "📸 برای افزودن تصویر ابتدا از منوی /start گزینه «➕ افزودن تصویر» را انتخاب کنید."
 
                         }
                     );
@@ -1617,6 +2468,10 @@ export default async (req) => {
                 }
 
 
+                // ----------------------------------------------
+                // بزرگ‌ترین عکس
+                // ----------------------------------------------
+
                 const photo =
                     getLargestPhoto(
                         message.photo
@@ -1632,223 +2487,78 @@ export default async (req) => {
                 }
 
 
-                const fileId =
+                // ----------------------------------------------
+                // ذخیره موقت عکس
+                // ----------------------------------------------
+
+                session.state =
+                    "waiting_name";
+
+
+                session.file_id =
                     photo.file_id;
 
 
-                const caption =
-                    message.caption ||
-                    "";
+                session.width =
+                    photo.width;
 
 
-                // -------------------------------------------
-                // ارسال به کانال
-                // -------------------------------------------
-
-                const channelMessage =
-                    await telegram(
-                        "sendPhoto",
-                        {
-
-                            chat_id:
-                                CHANNEL_ID,
-
-                            photo:
-                                fileId,
-
-                            caption:
-                                caption
-
-                        }
-                    );
+                session.height =
+                    photo.height;
 
 
-                // -------------------------------------------
-                // خواندن JSON
-                // -------------------------------------------
-
-                const {
-                    data,
-                    sha
-                } =
-                    await readImages();
+                session.telegram_user_id =
+                    userId;
 
 
-                // -------------------------------------------
-                // ID جدید
-                // -------------------------------------------
-
-                const newId =
-                    String(
-                        Date.now()
-                    );
+                session.telegram_chat_id =
+                    chatId;
 
 
-                // -------------------------------------------
-                // فعلاً نام و دسته‌بندی
-                // از caption گرفته می‌شود
-                //
-                // فرمت:
-                // نام | دسته بندی
-                // -------------------------------------------
-
-                let name =
-                    "";
+                session.updated_at =
+                    new Date().toISOString();
 
 
-                let categories =
-                    [];
-
-
-                if (
-                    caption.includes("|")
-                ) {
-
-                    const parts =
-                        caption.split("|");
-
-
-                    name =
-                        parts[0].trim();
-
-
-                    categories =
-                        parts
-                            .slice(1)
-                            .join("|")
-                            .split(",")
-                            .map(
-                                item =>
-                                    item.trim()
-                            )
-                            .filter(Boolean);
-
-                }
-
-
-                // -------------------------------------------
-                // اگر اطلاعات ناقص باشد
-                // عکس در کانال هست ولی در JSON
-                // به صورت incomplete ثبت می‌شود.
-                // -------------------------------------------
-
-                const imageRecord = {
-
-                    id:
-                        newId,
-
-                    file_id:
-                        fileId,
-
-                    telegram_message_id:
-                        channelMessage.message_id,
-
-                    name:
-                        name,
-
-                    categories:
-                        categories,
-
-                    caption:
-                        caption,
-
-                    width:
-                        photo.width,
-
-                    height:
-                        photo.height,
-
-                    created_at:
-                        new Date().toISOString()
-
-                };
-
-
-                data.images.push(
-                    imageRecord
+                await setSession(
+                    userId,
+                    session
                 );
 
 
-                await writeImages(
-                    data,
-                    sha,
-                    `Add image ${newId}`
+                await askImageName(
+                    chatId
                 );
-
-
-                // -------------------------------------------
-                // پاسخ
-                // -------------------------------------------
-
-                if (
-                    name &&
-                    categories.length > 0
-                ) {
-
-                    await telegram(
-                        "sendMessage",
-                        {
-
-                            chat_id:
-                                chatId,
-
-                            text:
-                                "✅ تصویر با موفقیت ثبت شد.\n\n" +
-                                `🖼 نام: ${name}\n` +
-                                `📂 دسته‌بندی: ${categories.join("، ")}`
-
-                        }
-                    );
-
-                } else {
-
-                    await telegram(
-                        "sendMessage",
-                        {
-
-                            chat_id:
-                                chatId,
-
-                            text:
-                                "⚠️ تصویر دریافت و ذخیره شد، اما نام یا دسته‌بندی کامل نیست.\n\n" +
-                                "برای نسخه بعدی این مرحله را کاملاً مرحله‌ای و دکمه‌ای می‌کنیم."
-
-                        }
-                    );
-
-                }
 
 
                 return new Response(
                     JSON.stringify({
-                        ok: true,
-                        image:
-                            imageRecord
+                        ok: true
                     }),
                     {
-                        status: 200,
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        }
+                        status: 200
                     }
                 );
 
             }
 
 
-            // -----------------------------------------------
-            // پیام متنی معمولی
-            // -----------------------------------------------
+            // ==================================================
+            // پیام متنی
+            // ==================================================
 
-            if (
-                message.text
-            ) {
+            if (message.text) {
 
-                if (
-                    isAdmin(userId)
-                ) {
+                const text =
+                    message.text.trim();
+
+
+                const session =
+                    await getSession(
+                        userId
+                    );
+
+
+                if (!session) {
 
                     await telegram(
                         "sendMessage",
@@ -1863,26 +2573,304 @@ export default async (req) => {
                         }
                     );
 
+
+                    return new Response(
+                        JSON.stringify({
+                            ok: true
+                        }),
+                        {
+                            status: 200
+                        }
+                    );
+
                 }
 
 
-                return new Response(
-                    JSON.stringify({
-                        ok: true
-                    }),
-                    {
-                        status: 200
+                // ==================================================
+                // انتظار نام
+                // ==================================================
+
+                if (
+                    session.state ===
+                    "waiting_name"
+                ) {
+
+                    if (!text) {
+
+                        await telegram(
+                            "sendMessage",
+                            {
+
+                                chat_id:
+                                    chatId,
+
+                                text:
+                                    "❌ نام تصویر نمی‌تواند خالی باشد.\n\nلطفاً نام تصویر را وارد کنید."
+
+                            }
+                        );
+
+
+                        return new Response(
+                            JSON.stringify({
+                                ok: true
+                            }),
+                            {
+                                status: 200
+                            }
+                        );
+
                     }
-                );
+
+
+                    if (
+                        text.length > 150
+                    ) {
+
+                        await telegram(
+                            "sendMessage",
+                            {
+
+                                chat_id:
+                                    chatId,
+
+                                text:
+                                    "❌ نام تصویر بیش از حد طولانی است.\n\nلطفاً نام کوتاه‌تری وارد کنید."
+
+                            }
+                        );
+
+
+                        return new Response(
+                            JSON.stringify({
+                                ok: true
+                            }),
+                            {
+                                status: 200
+                            }
+                        );
+
+                    }
+
+
+                    session.name =
+                        text;
+
+
+                    session.state =
+                        "waiting_category";
+
+
+                    session.updated_at =
+                        new Date().toISOString();
+
+
+                    await setSession(
+                        userId,
+                        session
+                    );
+
+
+                    await askImageCategory(
+                        chatId
+                    );
+
+
+                    return new Response(
+                        JSON.stringify({
+                            ok: true
+                        }),
+                        {
+                            status: 200
+                        }
+                    );
+
+                }
+
+
+                // ==================================================
+                // انتظار دسته‌بندی
+                // ==================================================
+
+                if (
+                    session.state ===
+                    "waiting_category"
+                ) {
+
+                    const categories =
+                        text
+                            .split(",")
+                            .map(
+                                item =>
+                                    item.trim()
+                            )
+                            .filter(Boolean);
+
+
+                    if (
+                        categories.length === 0
+                    ) {
+
+                        await telegram(
+                            "sendMessage",
+                            {
+
+                                chat_id:
+                                    chatId,
+
+                                text:
+                                    "❌ حداقل یک دسته‌بندی الزامی است.\n\nمثلاً:\nمحصولات"
+
+                            }
+                        );
+
+
+                        return new Response(
+                            JSON.stringify({
+                                ok: true
+                            }),
+                            {
+                                status: 200
+                            }
+                        );
+
+                    }
+
+
+                    // حذف دسته‌های تکراری
+                    const uniqueCategories =
+                        Array.from(
+                            new Set(
+                                categories
+                            )
+                        );
+
+
+                    session.categories =
+                        uniqueCategories;
+
+
+                    session.state =
+                        "waiting_confirmation";
+
+
+                    session.updated_at =
+                        new Date().toISOString();
+
+
+                    await setSession(
+                        userId,
+                        session
+                    );
+
+
+                    await showImagePreview(
+                        chatId,
+                        session
+                    );
+
+
+                    return new Response(
+                        JSON.stringify({
+                            ok: true
+                        }),
+                        {
+                            status: 200
+                        }
+                    );
+
+                }
+
+
+                // ==================================================
+                // اگر در حالت confirmation متن فرستاد
+                // ==================================================
+
+                if (
+                    session.state ===
+                    "waiting_confirmation"
+                ) {
+
+                    await telegram(
+                        "sendMessage",
+                        {
+
+                            chat_id:
+                                chatId,
+
+                            text:
+                                "👁 اطلاعات تصویر آماده تأیید است.\n\n" +
+                                "لطفاً از دکمه‌های زیر استفاده کنید.",
+
+                            reply_markup: {
+
+                                inline_keyboard: [
+
+                                    [
+                                        {
+                                            text:
+                                                "✅ ذخیره نهایی",
+
+                                            callback_data:
+                                                "SAVE_IMAGE"
+                                        }
+                                    ],
+
+                                    [
+                                        {
+                                            text:
+                                                "✏️ تغییر نام",
+
+                                            callback_data:
+                                                "CHANGE_NAME"
+                                        },
+
+                                        {
+                                            text:
+                                                "📂 تغییر دسته‌بندی",
+
+                                            callback_data:
+                                                "CHANGE_CATEGORY"
+                                        }
+                                    ],
+
+                                    [
+                                        {
+                                            text:
+                                                "❌ لغو",
+
+                                            callback_data:
+                                                "CANCEL_ADD"
+                                        }
+                                    ]
+
+                                ]
+
+                            }
+
+                        }
+                    );
+
+
+                    return new Response(
+                        JSON.stringify({
+                            ok: true
+                        }),
+                        {
+                            status: 200
+                        }
+                    );
+
+                }
 
             }
 
         }
 
 
-        // ========================================================
-        // پاسخ عمومی
-        // ========================================================
+        // ======================================================
+        // Response
+        // ======================================================
 
         return new Response(
             JSON.stringify({
