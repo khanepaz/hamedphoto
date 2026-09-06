@@ -1,3 +1,8 @@
 {
-  "sessions": {}
+  "sessions": {
+    "159953299": {
+      "state": "waiting_photo",
+      "created_at": "2026-09-06T12:57:03.544Z"
+    }
+  }
 }
