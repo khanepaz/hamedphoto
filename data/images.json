@@ -1,3 +1,12 @@
 {
-  "images": []
+  "images": [
+    {
+      "id": "2",
+      "file_id": "AgACAgQAAxkBAAMCap1C785xI20-Ycx7dLnX1WlVj54AAloPaxtfxOhQK_csEKHxnCQBAAMCAAN5AAM9BA",
+      "width": 880,
+      "height": 1168,
+      "caption": "",
+      "created_at": "2026-09-06T10:39:44.502Z"
+    }
+  ]
 }
