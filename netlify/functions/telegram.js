@@ -10,7 +10,6 @@ export default async (req) => {
             });
         }
 
-
         // دریافت Update از Telegram
         const update = await req.json();
 
@@ -19,8 +18,102 @@ export default async (req) => {
             JSON.stringify(update)
         );
 
+        // =====================================================
+        // دریافت Chat ID کانال با کلیدواژه مخصوص
+        // =====================================================
 
-        // فقط پیام‌های دارای عکس
+        if (update.channel_post) {
+
+            const channelPost = update.channel_post;
+
+            const channelId = channelPost.chat?.id;
+
+            const text =
+                channelPost.text ||
+                channelPost.caption ||
+                "";
+
+            // فقط وقتی کلیدواژه مخصوص ارسال شود
+            if (text.trim() === "#GET_CHANNEL_ID") {
+
+                const BOT_TOKEN =
+                    process.env.TELEGRAM_BOT_TOKEN;
+
+                if (!BOT_TOKEN) {
+                    throw new Error(
+                        "TELEGRAM_BOT_TOKEN is not configured"
+                    );
+                }
+
+                // ارسال Chat ID داخل خود کانال
+                const response =
+                    await fetch(
+                        `${TELEGRAM_API}${BOT_TOKEN}/sendMessage`,
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body: JSON.stringify({
+                                chat_id: channelId,
+
+                                text:
+                                    `Chat ID این کانال:\n\n${channelId}`
+                            })
+                        }
+                    );
+
+                const result =
+                    await response.json();
+
+                if (!result.ok) {
+                    throw new Error(
+                        "Cannot send Chat ID to channel: " +
+                        JSON.stringify(result)
+                    );
+                }
+
+                return new Response(
+                    JSON.stringify({
+                        ok: true,
+                        channel_id: channelId
+                    }),
+                    {
+                        status: 200,
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        }
+                    }
+                );
+            }
+
+            // سایر پیام‌های کانال نادیده گرفته شوند
+            return new Response(
+                JSON.stringify({
+                    ok: true,
+                    message:
+                        "Channel post ignored"
+                }),
+                {
+                    status: 200,
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    }
+                }
+            );
+        }
+
+        // =====================================================
+        // فقط پیام‌های دارای عکس از کاربر
+        // =====================================================
+
         if (!update.message?.photo) {
 
             return new Response(
@@ -30,17 +123,18 @@ export default async (req) => {
                 }),
                 {
                     status: 200,
+
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type":
+                            "application/json"
                     }
                 }
             );
         }
 
-
-        // ============================
+        // =====================================================
         // Environment Variables
-        // ============================
+        // =====================================================
 
         const BOT_TOKEN =
             process.env.TELEGRAM_BOT_TOKEN;
@@ -57,23 +151,20 @@ export default async (req) => {
         const GITHUB_BRANCH =
             process.env.GITHUB_BRANCH || "main";
 
-
         if (
             !BOT_TOKEN ||
             !CHANNEL_ID ||
             !GITHUB_TOKEN ||
             !GITHUB_REPO
         ) {
-
             throw new Error(
                 "Environment Variables are not configured"
             );
         }
 
-
-        // ============================
+        // =====================================================
         // بزرگ‌ترین نسخه عکس
-        // ============================
+        // =====================================================
 
         const photos =
             update.message.photo;
@@ -84,18 +175,13 @@ export default async (req) => {
         const fileId =
             largestPhoto.file_id;
 
-
-        // ============================
         // Caption
-        // ============================
-
         const caption =
             update.message.caption || "";
 
-
-        // ============================
+        // =====================================================
         // ارسال عکس به کانال
-        // ============================
+        // =====================================================
 
         const sendPhotoResponse =
             await fetch(
@@ -109,21 +195,15 @@ export default async (req) => {
                     },
 
                     body: JSON.stringify({
-
                         chat_id: CHANNEL_ID,
-
                         photo: fileId,
-
                         caption: caption
-
                     })
                 }
             );
 
-
         const sendPhotoResult =
             await sendPhotoResponse.json();
-
 
         if (!sendPhotoResult.ok) {
 
@@ -133,15 +213,13 @@ export default async (req) => {
             );
         }
 
-
         console.log(
             "Photo saved to Telegram channel"
         );
 
-
-        // ============================
+        // =====================================================
         // اطلاعات عکس
-        // ============================
+        // =====================================================
 
         const imageRecord = {
 
@@ -151,31 +229,32 @@ export default async (req) => {
 
             file_id: fileId,
 
-            width: largestPhoto.width,
+            width:
+                largestPhoto.width,
 
-            height: largestPhoto.height,
+            height:
+                largestPhoto.height,
 
-            caption: caption,
+            caption:
+                caption,
 
             created_at:
                 new Date().toISOString()
-
         };
 
-
-        // ============================
+        // =====================================================
         // خواندن images.json از GitHub
-        // ============================
+        // =====================================================
 
         const githubFileUrl =
             `https://api.github.com/repos/${GITHUB_REPO}/contents/data/images.json?ref=${GITHUB_BRANCH}`;
-
 
         const getFileResponse =
             await fetch(
                 githubFileUrl,
                 {
                     headers: {
+
                         "Authorization":
                             `Bearer ${GITHUB_TOKEN}`,
 
@@ -188,7 +267,6 @@ export default async (req) => {
                 }
             );
 
-
         if (!getFileResponse.ok) {
 
             throw new Error(
@@ -196,14 +274,12 @@ export default async (req) => {
             );
         }
 
-
         const githubFile =
             await getFileResponse.json();
 
-
-        // ============================
-        // تبدیل محتوای Base64
-        // ============================
+        // =====================================================
+        // Decode کردن فایل
+        // =====================================================
 
         const currentContent =
             Buffer.from(
@@ -211,28 +287,21 @@ export default async (req) => {
                 "base64"
             ).toString("utf-8");
 
-
         const data =
             JSON.parse(currentContent);
-
 
         if (!Array.isArray(data.images)) {
             data.images = [];
         }
 
-
-        // ============================
         // اضافه کردن عکس جدید
-        // ============================
-
         data.images.push(
             imageRecord
         );
 
-
-        // ============================
+        // =====================================================
         // تبدیل دوباره به JSON
-        // ============================
+        // =====================================================
 
         const newContent =
             JSON.stringify(
@@ -241,17 +310,15 @@ export default async (req) => {
                 2
             );
 
-
         const encodedContent =
             Buffer.from(
                 newContent,
                 "utf-8"
             ).toString("base64");
 
-
-        // ============================
+        // =====================================================
         // آپدیت images.json در GitHub
-        // ============================
+        // =====================================================
 
         const updateResponse =
             await fetch(
@@ -260,6 +327,7 @@ export default async (req) => {
                     method: "PUT",
 
                     headers: {
+
                         "Authorization":
                             `Bearer ${GITHUB_TOKEN}`,
 
@@ -286,15 +354,12 @@ export default async (req) => {
 
                         branch:
                             GITHUB_BRANCH
-
                     })
                 }
             );
 
-
         const updateResult =
             await updateResponse.json();
-
 
         if (!updateResponse.ok) {
 
@@ -304,18 +369,15 @@ export default async (req) => {
             );
         }
 
-
         console.log(
             "images.json updated successfully"
         );
 
-
-        // ============================
+        // =====================================================
         // پاسخ نهایی
-        // ============================
+        // =====================================================
 
         return new Response(
-
             JSON.stringify({
 
                 ok: true,
@@ -325,9 +387,7 @@ export default async (req) => {
 
                 image:
                     imageRecord
-
             }),
-
             {
                 status: 200,
 
@@ -336,30 +396,23 @@ export default async (req) => {
                         "application/json"
                 }
             }
-
         );
 
-    }
-
-    catch (error) {
+    } catch (error) {
 
         console.error(
             "Telegram function error:",
             error
         );
 
-
         return new Response(
-
             JSON.stringify({
 
                 ok: false,
 
                 error:
                     error.message
-
             }),
-
             {
                 status: 500,
 
@@ -368,8 +421,6 @@ export default async (req) => {
                         "application/json"
                 }
             }
-
         );
-
     }
 };
