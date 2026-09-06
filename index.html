@@ -1,217 +1,1020 @@
+```html
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
+
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>گالری تصاویر</title>
 
+
     <style>
+
+        /* =====================================================
+           RESET
+        ===================================================== */
+
         * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
+
+
+        /* =====================================================
+           BODY
+        ===================================================== */
 
         body {
-            margin: 0;
-            padding: 30px;
-            font-family: Tahoma, Arial, sans-serif;
-            background: #f5f5f5;
+
+            min-height: 100vh;
+
+            font-family:
+                Tahoma,
+                Arial,
+                sans-serif;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #f8fafc 0%,
+                    #eef2ff 50%,
+                    #f8fafc 100%
+                );
+
+            color: #1e293b;
+
+            padding:
+                40px 24px 60px;
         }
 
-        h1 {
+
+        /* =====================================================
+           MAIN CONTAINER
+        ===================================================== */
+
+        .container {
+
+            width: 100%;
+
+            max-width: 1400px;
+
+            margin: 0 auto;
+        }
+
+
+        /* =====================================================
+           HEADER
+        ===================================================== */
+
+        .header {
+
             text-align: center;
+
+            margin-bottom: 35px;
+        }
+
+
+        .header-badge {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            padding:
+                8px 16px;
+
+            margin-bottom: 15px;
+
+            border-radius: 999px;
+
+            background: rgba(255, 255, 255, 0.75);
+
+            border:
+                1px solid
+                rgba(148, 163, 184, 0.25);
+
+            box-shadow:
+                0 4px 15px
+                rgba(15, 23, 42, 0.05);
+
+            font-size: 13px;
+
+            color: #64748b;
+        }
+
+
+        .header-badge span {
+
+            width: 8px;
+
+            height: 8px;
+
+            border-radius: 50%;
+
+            background: #22c55e;
+        }
+
+
+        h1 {
+
+            font-size: clamp(
+                28px,
+                5vw,
+                44px
+            );
+
+            font-weight: 800;
+
+            letter-spacing: -1px;
+
+            color: #0f172a;
+
+            margin-bottom: 12px;
+        }
+
+
+        .subtitle {
+
+            color: #64748b;
+
+            font-size: 15px;
+
+            line-height: 1.8;
+        }
+
+
+        /* =====================================================
+           STATUS
+        ===================================================== */
+
+        .status-wrapper {
+
+            display: flex;
+
+            justify-content: center;
+
             margin-bottom: 30px;
         }
 
+
         #status {
-            text-align: center;
-            margin-bottom: 20px;
-            color: #666;
+
+            display: inline-flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            min-height: 42px;
+
+            padding:
+                10px 18px;
+
+            border-radius: 12px;
+
+            background:
+                rgba(255, 255, 255, 0.8);
+
+            border:
+                1px solid
+                rgba(148, 163, 184, 0.2);
+
+            color: #64748b;
+
+            font-size: 14px;
+
+            box-shadow:
+                0 5px 20px
+                rgba(15, 23, 42, 0.04);
         }
+
+
+        /* =====================================================
+           GALLERY
+        ===================================================== */
 
         .gallery {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            align-items: flex-start;
+
+            display: grid;
+
+            grid-template-columns:
+                repeat(
+                    auto-fill,
+                    minmax(250px, 1fr)
+                );
+
+            gap: 24px;
+
+            align-items: start;
         }
+
+
+        /* =====================================================
+           IMAGE CARD
+        ===================================================== */
 
         .image-card {
-            flex: 1 1 250px;
-            max-width: 350px;
-            background: white;
-            border-radius: 12px;
+
+            position: relative;
+
             overflow: hidden;
-            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
+
+            background: #ffffff;
+
+            border-radius: 20px;
+
+            border:
+                1px solid
+                rgba(148, 163, 184, 0.15);
+
+            box-shadow:
+                0 8px 30px
+                rgba(15, 23, 42, 0.07);
+
+            transition:
+                transform 0.3s ease,
+                box-shadow 0.3s ease;
         }
 
-        .image-card img {
-            width: 100%;
-            height: 250px;
-            display: block;
-            object-fit: cover;
+
+        .image-card:hover {
+
+            transform:
+                translateY(-6px);
+
+            box-shadow:
+                0 18px 45px
+                rgba(15, 23, 42, 0.14);
         }
+
+
+        /* =====================================================
+           IMAGE
+        ===================================================== */
+
+        .image-wrapper {
+
+            position: relative;
+
+            width: 100%;
+
+            aspect-ratio: 4 / 3;
+
+            overflow: hidden;
+
+            background: #e2e8f0;
+        }
+
+
+        .image-wrapper img {
+
+            width: 100%;
+
+            height: 100%;
+
+            display: block;
+
+            object-fit: cover;
+
+            transition:
+                transform 0.5s ease;
+        }
+
+
+        .image-card:hover
+        .image-wrapper img {
+
+            transform:
+                scale(1.05);
+        }
+
+
+        /* =====================================================
+           IMAGE OVERLAY
+        ===================================================== */
+
+        .image-overlay {
+
+            position: absolute;
+
+            inset: 0;
+
+            display: flex;
+
+            align-items: flex-end;
+
+            padding: 18px;
+
+            background:
+                linear-gradient(
+                    to top,
+                    rgba(15, 23, 42, 0.45),
+                    transparent 45%
+                );
+
+            opacity: 0;
+
+            transition:
+                opacity 0.3s ease;
+
+            pointer-events: none;
+        }
+
+
+        .image-card:hover
+        .image-overlay {
+
+            opacity: 1;
+        }
+
+
+        .image-number {
+
+            color: white;
+
+            font-size: 12px;
+
+            background:
+                rgba(15, 23, 42, 0.65);
+
+            backdrop-filter:
+                blur(8px);
+
+            padding:
+                6px 10px;
+
+            border-radius: 8px;
+        }
+
+
+        /* =====================================================
+           CARD FOOTER
+        ===================================================== */
+
+        .image-footer {
+
+            padding:
+                14px 16px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            gap: 10px;
+        }
+
 
         .image-title {
-            padding: 12px;
+
+            font-size: 13px;
+
+            color: #475569;
+
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+
+            white-space: nowrap;
+        }
+
+
+        .image-date {
+
+            font-size: 11px;
+
+            color: #94a3b8;
+
+            white-space: nowrap;
+        }
+
+
+        /* =====================================================
+           EMPTY STATE
+        ===================================================== */
+
+        .empty-state {
+
+            grid-column: 1 / -1;
+
             text-align: center;
+
+            padding:
+                70px 20px;
+
+            background:
+                rgba(255,255,255,0.7);
+
+            border-radius: 20px;
+
+            border:
+                1px dashed
+                #cbd5e1;
+        }
+
+
+        .empty-icon {
+
+            font-size: 48px;
+
+            margin-bottom: 15px;
+        }
+
+
+        .empty-state h2 {
+
+            font-size: 20px;
+
+            margin-bottom: 8px;
+
+            color: #334155;
+        }
+
+
+        .empty-state p {
+
+            color: #94a3b8;
+
             font-size: 14px;
         }
 
-        @media (max-width: 600px) {
-            body {
-                padding: 15px;
+
+        /* =====================================================
+           LOADING
+        ===================================================== */
+
+        .loading {
+
+            grid-column: 1 / -1;
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: center;
+
+            min-height: 200px;
+
+            color: #64748b;
+
+            font-size: 14px;
+        }
+
+
+        .loading-spinner {
+
+            width: 24px;
+
+            height: 24px;
+
+            margin-left: 10px;
+
+            border:
+                3px solid
+                #e2e8f0;
+
+            border-top-color:
+                #64748b;
+
+            border-radius: 50%;
+
+            animation:
+                spin 0.8s linear infinite;
+        }
+
+
+        @keyframes spin {
+
+            to {
+                transform: rotate(360deg);
             }
 
-            .image-card {
-                flex: 1 1 100%;
-                max-width: none;
-            }
         }
+
+
+        /* =====================================================
+           FOOTER
+        ===================================================== */
+
+        .footer {
+
+            text-align: center;
+
+            margin-top: 45px;
+
+            color: #94a3b8;
+
+            font-size: 12px;
+        }
+
+
+        /* =====================================================
+           RESPONSIVE
+        ===================================================== */
+
+        @media (max-width: 700px) {
+
+            body {
+
+                padding:
+                    25px 14px 40px;
+            }
+
+
+            .gallery {
+
+                grid-template-columns:
+                    repeat(
+                        2,
+                        minmax(0, 1fr)
+                    );
+
+                gap: 14px;
+            }
+
+
+            .image-card {
+
+                border-radius: 15px;
+            }
+
+
+            .image-footer {
+
+                padding:
+                    10px 12px;
+            }
+
+
+            .image-date {
+
+                display: none;
+            }
+
+        }
+
+
+        @media (max-width: 430px) {
+
+            .gallery {
+
+                grid-template-columns:
+                    1fr;
+            }
+
+        }
+
     </style>
+
 </head>
+
 
 <body>
 
-    <h1>گالری تصاویر</h1>
 
-    <div id="status">
-        در حال دریافت تصاویر...
-    </div>
+    <main class="container">
 
-    <!--
-        هیچ عکس ثابتی اینجا وجود ندارد.
-        تصاویر توسط JavaScript از API دریافت می‌شوند.
-    -->
-    <div id="gallery" class="gallery"></div>
+
+        <!-- =================================================
+             HEADER
+        ================================================== -->
+
+        <header class="header">
+
+            <div class="header-badge">
+
+                <span></span>
+
+                گالری آنلاین
+
+            </div>
+
+
+            <h1>
+                گالری تصاویر
+            </h1>
+
+
+            <p class="subtitle">
+                تصاویر جدید به‌صورت خودکار در این گالری نمایش داده می‌شوند.
+            </p>
+
+        </header>
+
+
+        <!-- =================================================
+             STATUS
+        ================================================== -->
+
+        <div class="status-wrapper">
+
+            <div id="status">
+                در حال دریافت تصاویر...
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             GALLERY
+        ================================================== -->
+
+        <section
+            id="gallery"
+            class="gallery"
+        >
+
+            <div class="loading">
+
+                <div class="loading-spinner"></div>
+
+                در حال دریافت تصاویر...
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             FOOTER
+        ================================================== -->
+
+        <footer class="footer">
+
+            تصاویر این گالری به‌صورت خودکار بروزرسانی می‌شوند.
+
+        </footer>
+
+
+    </main>
+
 
 
     <script>
 
-        const gallery = document.getElementById("gallery");
-        const status = document.getElementById("status");
 
+        const gallery =
+            document.getElementById("gallery");
+
+
+        const status =
+            document.getElementById("status");
+
+
+        // =====================================================
+        // تبدیل تاریخ
+        // =====================================================
+
+        function formatDate(dateString) {
+
+            if (!dateString) {
+                return "";
+            }
+
+            try {
+
+                const date =
+                    new Date(dateString);
+
+                return date.toLocaleDateString(
+                    "fa-IR"
+                );
+
+            } catch {
+
+                return "";
+
+            }
+
+        }
+
+
+        // =====================================================
+        // ساخت کارت تصویر
+        // =====================================================
+
+        function createImageCard(item, index) {
+
+            const card =
+                document.createElement("article");
+
+            card.className =
+                "image-card";
+
+
+            // -------------------------------
+            // Image wrapper
+            // -------------------------------
+
+            const wrapper =
+                document.createElement("div");
+
+            wrapper.className =
+                "image-wrapper";
+
+
+            // -------------------------------
+            // Image
+            // -------------------------------
+
+            const img =
+                document.createElement("img");
+
+
+            /*
+                تصویر واقعی از طریق image.js
+                دریافت می‌شود.
+            */
+
+            img.src =
+                `/.netlify/functions/image?file_id=${encodeURIComponent(item.file_id)}`;
+
+
+            img.alt =
+                item.caption ||
+                "تصویر گالری";
+
+
+            img.loading =
+                "lazy";
+
+
+            img.decoding =
+                "async";
+
+
+            // -------------------------------
+            // Overlay
+            // -------------------------------
+
+            const overlay =
+                document.createElement("div");
+
+            overlay.className =
+                "image-overlay";
+
+
+            const number =
+                document.createElement("span");
+
+            number.className =
+                "image-number";
+
+
+            number.textContent =
+                `تصویر ${index + 1}`;
+
+
+            overlay.appendChild(number);
+
+
+            wrapper.appendChild(img);
+
+            wrapper.appendChild(overlay);
+
+
+            // -------------------------------
+            // Footer
+            // -------------------------------
+
+            const footer =
+                document.createElement("div");
+
+            footer.className =
+                "image-footer";
+
+
+            const title =
+                document.createElement("div");
+
+            title.className =
+                "image-title";
+
+
+            title.textContent =
+                item.caption ||
+                "تصویر";
+
+
+            const date =
+                document.createElement("div");
+
+            date.className =
+                "image-date";
+
+
+            date.textContent =
+                formatDate(
+                    item.created_at
+                );
+
+
+            footer.appendChild(title);
+
+            footer.appendChild(date);
+
+
+            // -------------------------------
+            // Card
+            // -------------------------------
+
+            card.appendChild(wrapper);
+
+            card.appendChild(footer);
+
+
+            return card;
+        }
+
+
+        // =====================================================
+        // دریافت تصاویر
+        // =====================================================
 
         async function loadImages() {
 
             try {
 
-                const response = await fetch(
-                    "/.netlify/functions/images",
-                    {
-                        cache: "no-store"
-                    }
-                );
+                const response =
+                    await fetch(
+                        "/.netlify/functions/images",
+                        {
+                            cache: "no-store"
+                        }
+                    );
 
 
                 if (!response.ok) {
-                    throw new Error("خطا در دریافت تصاویر");
+
+                    throw new Error(
+                        "خطا در دریافت تصاویر"
+                    );
+
                 }
 
 
-                const data = await response.json();
+                const data =
+                    await response.json();
 
 
-                // API ما بعداً این ساختار را برمی‌گرداند:
-                //
-                // {
-                //     "images": [
-                //         {
-                //             "id": "123",
-                //             "url": "...",
-                //             "title": "..."
-                //         }
-                //     ]
-                // }
-
-                const images = Array.isArray(data)
-                    ? data
-                    : (data.images || []);
+                const images =
+                    Array.isArray(data)
+                        ? data
+                        : (
+                            Array.isArray(data.images)
+                                ? data.images
+                                : []
+                        );
 
 
-                gallery.innerHTML = "";
+                gallery.innerHTML =
+                    "";
 
+
+                // =================================================
+                // Empty
+                // =================================================
 
                 if (images.length === 0) {
 
                     status.textContent =
                         "هنوز تصویری در گالری وجود ندارد.";
 
+
+                    const empty =
+                        document.createElement("div");
+
+                    empty.className =
+                        "empty-state";
+
+
+                    empty.innerHTML = `
+
+                        <div class="empty-icon">
+                            🖼️
+                        </div>
+
+                        <h2>
+                            گالری خالی است
+                        </h2>
+
+                        <p>
+                            اولین تصویر را از طریق ربات تلگرام ارسال کنید.
+                        </p>
+
+                    `;
+
+
+                    gallery.appendChild(empty);
+
                     return;
                 }
 
 
+                // =================================================
+                // Status
+                // =================================================
+
                 status.textContent =
-                    `${images.length} تصویر`;
+                    `${images.length} تصویر در گالری`;
 
 
-                images.forEach((item) => {
+                // =================================================
+                // Render
+                // =================================================
 
-                    const card =
-                        document.createElement("div");
+                images
+                    .slice()
+                    .reverse()
+                    .forEach(
+                        (item, index) => {
 
-                    card.className =
-                        "image-card";
+                            if (!item.file_id) {
+                                return;
+                            }
 
-
-                    const img =
-                        document.createElement("img");
-
-                    img.src = item.url;
-
-                    img.alt =
-                        item.title || "تصویر";
-
-                    img.loading = "lazy";
-
-                    img.decoding = "async";
-
-
-                    card.appendChild(img);
+                            const card =
+                                createImageCard(
+                                    item,
+                                    index
+                                );
 
 
-                    if (item.title) {
+                            gallery.appendChild(
+                                card
+                            );
 
-                        const title =
-                            document.createElement("div");
-
-                        title.className =
-                            "image-title";
-
-                        title.textContent =
-                            item.title;
-
-                        card.appendChild(title);
-                    }
-
-
-                    gallery.appendChild(card);
-
-                });
+                        }
+                    );
 
             }
+
 
             catch (error) {
 
                 console.error(error);
 
+
                 status.textContent =
                     "فعلاً امکان دریافت تصاویر وجود ندارد.";
+
+
+                gallery.innerHTML = `
+
+                    <div class="empty-state">
+
+                        <div class="empty-icon">
+                            ⚠️
+                        </div>
+
+                        <h2>
+                            خطا در دریافت تصاویر
+                        </h2>
+
+                        <p>
+                            لطفاً چند لحظه بعد دوباره تلاش کنید.
+                        </p>
+
+                    </div>
+
+                `;
 
             }
 
         }
 
 
-        // اولین بار هنگام باز شدن سایت
+        // =====================================================
+        // اولین بار
+        // =====================================================
+
         loadImages();
 
 
-        // هر 10 ثانیه بررسی می‌کنیم
-        // که آیا تصویر جدیدی از تلگرام آمده یا نه.
-        setInterval(loadImages, 10000);
+        // =====================================================
+        // بروزرسانی خودکار
+        // =====================================================
+
+        setInterval(
+            loadImages,
+            10000
+        );
+
 
     </script>
 
+
 </body>
+
 </html>
+```
